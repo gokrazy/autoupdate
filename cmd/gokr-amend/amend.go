@@ -5,6 +5,7 @@ package main
 
 import (
 	"crypto/sha1"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -68,11 +69,23 @@ func updatePullRequest(client *github.Client, owner, repo, branch string, files 
 		if local, remote := fmt.Sprintf("%x", hash.Sum(nil)), hashByName[fn]; local != remote {
 			log.Printf("%s differs (local %s, remote %s)", fn, local, remote)
 
+			blob, _, err := client.Git.CreateBlob(owner, repo, &github.Blob{
+				Content:  github.String(base64.StdEncoding.EncodeToString(b)),
+				Encoding: github.String("base64"),
+			})
+			if err != nil {
+				return err
+			}
+
+			if got, want := *blob.SHA, local; got != want {
+				return fmt.Errorf("blob creation failed: invalid SHA hash: got %s, want %s", got, want)
+			}
+
 			entries = append(entries, github.TreeEntry{
-				Path:    github.String(fn),
-				Mode:    github.String("100644"),
-				Type:    github.String("blob"),
-				Content: github.String(string(b)),
+				Path: github.String(fn),
+				Mode: github.String("100644"),
+				Type: github.String("blob"),
+				SHA:  github.String(*blob.SHA),
 			})
 		}
 	}
