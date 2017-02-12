@@ -4,7 +4,10 @@
 package main
 
 import (
+	"crypto/sha1"
 	"flag"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -38,18 +41,45 @@ func updatePullRequest(client *github.Client, owner, repo, branch string, files 
 	}
 	log.Printf("baseTree = %+v", baseTree)
 
-	entries := make([]github.TreeEntry, len(files))
-	for idx, fn := range files {
-		b, err := ioutil.ReadFile(fn)
+	hashByName := make(map[string]string, len(baseTree.Entries))
+	for _, e := range baseTree.Entries {
+		hashByName[*e.Path] = *e.SHA
+	}
+
+	entries := make([]github.TreeEntry, 0, len(files))
+	for _, fn := range files {
+		hash := sha1.New()
+		f, err := os.Open(fn)
 		if err != nil {
 			return err
 		}
-		entries[idx] = github.TreeEntry{
-			Path:    github.String(fn),
-			Mode:    github.String("100644"),
-			Type:    github.String("blob"),
-			Content: github.String(string(b)),
+		defer f.Close()
+		st, err := f.Stat()
+		if err != nil {
+			return err
 		}
+		if _, err := fmt.Fprintf(hash, "blob %d\x00", st.Size()); err != nil {
+			return err
+		}
+		b, err := ioutil.ReadAll(io.TeeReader(f, hash))
+		if err != nil {
+			return err
+		}
+		if local, remote := fmt.Sprintf("%x", hash.Sum(nil)), hashByName[fn]; local != remote {
+			log.Printf("%s differs (local %s, remote %s)", fn, local, remote)
+
+			entries = append(entries, github.TreeEntry{
+				Path:    github.String(fn),
+				Mode:    github.String("100644"),
+				Type:    github.String("blob"),
+				Content: github.String(string(b)),
+			})
+		}
+	}
+
+	if len(entries) == 0 {
+		log.Printf("all files equal, nothing to amend")
+		return nil
 	}
 
 	newTree, _, err := client.Git.CreateTree(owner, repo, *baseTree.SHA, entries)
