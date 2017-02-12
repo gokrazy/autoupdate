@@ -13,9 +13,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-github/github"
+)
+
+var (
+	setLabel = flag.String("set_label",
+		"",
+		"if non-empty, name of a GitHub label to set on the pull request")
 )
 
 // updatePullRequest corresponds to the following git CLI operations:
@@ -108,6 +115,18 @@ func updatePullRequest(client *github.Client, owner, repo, branch string, files 
 		return err
 	}
 	log.Printf("newCommit = %+v", newCommit)
+
+	if *setLabel != "" {
+		// Do this before updating the ref to avoid race-conditions.
+		issueNum, err := strconv.ParseInt(os.Getenv("TRAVIS_PULL_REQUEST"), 0, 64)
+		if err != nil {
+			return err
+		}
+		_, _, err = client.Issues.AddLabelsToIssue(owner, repo, int(issueNum), []string{*setLabel})
+		if err != nil {
+			return err
+		}
+	}
 
 	newRef, _, err := client.Git.UpdateRef(owner, repo, &github.Reference{
 		Ref: github.String("refs/heads/" + branch),
