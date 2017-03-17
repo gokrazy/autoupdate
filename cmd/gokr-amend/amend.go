@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/base64"
 	"flag"
@@ -30,20 +31,20 @@ var (
 // 1. git add <files>
 // 2. git commit --amend
 // 3. git push -f
-func updatePullRequest(client *github.Client, owner, repo, branch string, files []string) error {
-	lastRef, _, err := client.Git.GetRef(owner, repo, "heads/"+branch)
+func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, branch string, files []string) error {
+	lastRef, _, err := client.Git.GetRef(ctx, owner, repo, "heads/"+branch)
 	if err != nil {
 		return err
 	}
 
-	lastCommit, _, err := client.Git.GetCommit(owner, repo, *lastRef.Object.SHA)
+	lastCommit, _, err := client.Git.GetCommit(ctx, owner, repo, *lastRef.Object.SHA)
 	if err != nil {
 		return err
 	}
 
 	log.Printf("lastCommit = %+v", lastCommit)
 
-	baseTree, _, err := client.Git.GetTree(owner, repo, *lastCommit.SHA, true)
+	baseTree, _, err := client.Git.GetTree(ctx, owner, repo, *lastCommit.SHA, true)
 	if err != nil {
 		return err
 	}
@@ -76,7 +77,7 @@ func updatePullRequest(client *github.Client, owner, repo, branch string, files 
 		if local, remote := fmt.Sprintf("%x", hash.Sum(nil)), hashByName[fn]; local != remote {
 			log.Printf("%s differs (local %s, remote %s)", fn, local, remote)
 
-			blob, _, err := client.Git.CreateBlob(owner, repo, &github.Blob{
+			blob, _, err := client.Git.CreateBlob(ctx, owner, repo, &github.Blob{
 				Content:  github.String(base64.StdEncoding.EncodeToString(b)),
 				Encoding: github.String("base64"),
 			})
@@ -102,7 +103,7 @@ func updatePullRequest(client *github.Client, owner, repo, branch string, files 
 		return nil
 	}
 
-	newTree, _, err := client.Git.CreateTree(owner, repo, *baseTree.SHA, entries)
+	newTree, _, err := client.Git.CreateTree(ctx, owner, repo, *baseTree.SHA, entries)
 	if err != nil {
 		return err
 	}
@@ -110,7 +111,7 @@ func updatePullRequest(client *github.Client, owner, repo, branch string, files 
 
 	lastCommit.Tree = newTree
 
-	newCommit, _, err := client.Git.CreateCommit(owner, repo, lastCommit)
+	newCommit, _, err := client.Git.CreateCommit(ctx, owner, repo, lastCommit)
 	if err != nil {
 		return err
 	}
@@ -122,13 +123,13 @@ func updatePullRequest(client *github.Client, owner, repo, branch string, files 
 		if err != nil {
 			return err
 		}
-		_, _, err = client.Issues.AddLabelsToIssue(owner, repo, int(issueNum), []string{*setLabel})
+		_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, int(issueNum), []string{*setLabel})
 		if err != nil {
 			return err
 		}
 	}
 
-	newRef, _, err := client.Git.UpdateRef(owner, repo, &github.Reference{
+	newRef, _, err := client.Git.UpdateRef(ctx, owner, repo, &github.Reference{
 		Ref: github.String("refs/heads/" + branch),
 		Object: &github.GitObject{
 			SHA: newCommit.SHA,
@@ -172,7 +173,7 @@ func main() {
 		},
 	})
 
-	if err := updatePullRequest(client, parts[0], parts[1], branch, flag.Args()); err != nil {
+	if err := updatePullRequest(context.Background(), client, parts[0], parts[1], branch, flag.Args()); err != nil {
 		log.Fatal(err)
 	}
 }
