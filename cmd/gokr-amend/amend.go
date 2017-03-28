@@ -100,6 +100,16 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 
 	if len(entries) == 0 {
 		log.Printf("all files equal, nothing to amend")
+		if *setLabel != "" {
+			issueNum, err := strconv.ParseInt(os.Getenv("TRAVIS_PULL_REQUEST"), 0, 64)
+			if err != nil {
+				return err
+			}
+			_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, int(issueNum), []string{*setLabel})
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
