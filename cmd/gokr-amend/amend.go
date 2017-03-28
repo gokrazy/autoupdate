@@ -26,12 +26,38 @@ var (
 		"if non-empty, name of a GitHub label to set on the pull request")
 )
 
+func ensureLabel(ctx context.Context, client *github.Client, owner, repo string, issueNum int, label string) (bool, error) {
+	labels, _, err := client.Issues.ListLabelsByIssue(ctx, owner, repo, issueNum, nil)
+	if err != nil {
+		return true, err
+	}
+	for _, l := range labels {
+		if *l.Name == label {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func addLabel(ctx context.Context, client *github.Client, owner, repo string, issueNum int, label string) error {
+	found, err := ensureLabel(ctx, client, owner, repo, issueNum, label)
+	if err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+
+	_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, issueNum, []string{*setLabel})
+	return err
+}
+
 // updatePullRequest corresponds to the following git CLI operations:
 //
 // 1. git add <files>
 // 2. git commit --amend
 // 3. git push -f
-func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, branch string, files []string) error {
+func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, branch string, files []string, issueNum int, label string) error {
 	lastRef, _, err := client.Git.GetRef(ctx, owner, repo, "heads/"+branch)
 	if err != nil {
 		return err
@@ -100,13 +126,8 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 
 	if len(entries) == 0 {
 		log.Printf("all files equal, nothing to amend")
-		if *setLabel != "" {
-			issueNum, err := strconv.ParseInt(os.Getenv("TRAVIS_PULL_REQUEST"), 0, 64)
-			if err != nil {
-				return err
-			}
-			_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, int(issueNum), []string{*setLabel})
-			if err != nil {
+		if label != "" {
+			if err := addLabel(ctx, client, owner, repo, issueNum, label); err != nil {
 				return err
 			}
 		}
@@ -127,14 +148,8 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 	}
 	log.Printf("newCommit = %+v", newCommit)
 
-	if *setLabel != "" {
-		// Do this before updating the ref to avoid race-conditions.
-		issueNum, err := strconv.ParseInt(os.Getenv("TRAVIS_PULL_REQUEST"), 0, 64)
-		if err != nil {
-			return err
-		}
-		_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, int(issueNum), []string{*setLabel})
-		if err != nil {
+	if label != "" {
+		if err := addLabel(ctx, client, owner, repo, issueNum, label); err != nil {
 			return err
 		}
 	}
@@ -158,6 +173,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	for _, name := range []string{
+		"TRAVIS_PULL_REQUEST",
 		"TRAVIS_PULL_REQUEST_BRANCH",
 		"TRAVIS_REPO_SLUG",
 		"GITHUB_USER",
@@ -183,7 +199,12 @@ func main() {
 		},
 	})
 
-	if err := updatePullRequest(context.Background(), client, parts[0], parts[1], branch, flag.Args()); err != nil {
+	issueNum, err := strconv.ParseInt(os.Getenv("TRAVIS_PULL_REQUEST"), 0, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := updatePullRequest(context.Background(), client, parts[0], parts[1], branch, flag.Args(), int(issueNum), *setLabel); err != nil {
 		log.Fatal(err)
 	}
 }
