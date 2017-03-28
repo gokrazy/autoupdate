@@ -175,7 +175,7 @@ func main() {
 
 	bootlog, err := testBoot(bootImg, *booteryURL)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
 	}
 
 	gistURL, err := createGist(ctx, client, bootlog)
