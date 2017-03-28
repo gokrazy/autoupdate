@@ -16,12 +16,6 @@ import (
 	"github.com/google/go-github/github"
 )
 
-var (
-	userPass = flag.String("github_user_pass",
-		"",
-		"If non-empty, a user:password string for HTTP basic authentication. See https://github.com/settings/tokens")
-)
-
 func getUpstreamURL(ctx context.Context) (string, error) {
 	resp, err := http.Get("https://www.kernel.org/releases.json")
 	if err != nil {

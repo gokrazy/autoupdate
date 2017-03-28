@@ -14,12 +14,6 @@ import (
 	"github.com/google/go-github/github"
 )
 
-var (
-	userPass = flag.String("github_user_pass",
-		"",
-		"If non-empty, a user:password string for HTTP basic authentication. See https://github.com/settings/tokens")
-)
-
 // getUpstreamCommit returns the SHA of the most recent
 // github.com/raspberrypi/firmware git commit which touches
 // boot/*.{elf,bin,dat}.
