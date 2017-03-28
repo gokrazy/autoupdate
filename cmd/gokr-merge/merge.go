@@ -97,7 +97,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := deleteRef(ctx, client, parts[0], parts[1], os.Getenv("TRAVIS_PULL_REQUEST_BRANCH")); err != nil {
+	if err := deleteRef(ctx, client, parts[0], parts[1], "heads/"+os.Getenv("TRAVIS_PULL_REQUEST_BRANCH")); err != nil {
 		log.Fatal(err)
 	}
 }
