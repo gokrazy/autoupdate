@@ -127,7 +127,7 @@ func main() {
 	}
 
 	if *booteryURL == "" {
-		log.Fatal("-booteryURL is a required flag")
+		log.Fatal("-bootery_url is a required flag")
 	}
 
 	if *requireLabel == "" {
