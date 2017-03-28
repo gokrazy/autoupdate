@@ -32,6 +32,18 @@ func ensureLabel(ctx context.Context, client *github.Client, owner, repo string,
 	return false, nil
 }
 
+func merge(ctx context.Context, client *github.Client, owner, repo string, issueNum int) error {
+	_, _, err := client.PullRequests.Merge(ctx, owner, repo, issueNum, "automatically merged", &github.PullRequestOptions{
+		MergeMethod: "squash",
+	})
+	return err
+}
+
+func deleteRef(ctx context.Context, client *github.Client, owner, repo string, ref string) error {
+	_, err := client.Git.DeleteRef(ctx, owner, repo, ref)
+	return err
+}
+
 func main() {
 	flag.Parse()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -81,7 +93,11 @@ func main() {
 		os.Exit(2) // label not present
 	}
 
-	log.Printf("TODO: implement")
-	// TODO: merge the PR
-	// TODO: delete the ref to clean up old branches
+	if err := merge(ctx, client, parts[0], parts[1], int(issueNum)); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := deleteRef(ctx, client, parts[0], parts[1], os.Getenv("TRAVIS_PULL_REQUEST_BRANCH")); err != nil {
+		log.Fatal(err)
+	}
 }
