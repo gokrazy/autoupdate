@@ -162,7 +162,9 @@ func main() {
 	ctx := context.Background()
 
 	if err := ensureLabel(ctx, client, parts[0], parts[1], issueNum, *requireLabel); err != nil {
-		log.Fatal(err)
+		// Exit with exit code 0 if there is nothing to do.
+		log.Println(err.Error())
+		return
 	}
 
 	bootImg, err := writeBootImage()
