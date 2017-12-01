@@ -40,7 +40,7 @@ func getUpstreamURL(ctx context.Context) (string, error) {
 		if release.Version != releases.LatestStable.Version {
 			continue
 		}
-		return strings.Replace(release.Source, "www.kernel.org", "cdn.kernel.org", 1), nil
+		return release.Source, nil
 	}
 	return "", fmt.Errorf("malformed releases.json: latest stable release %q not found in releases list", releases.LatestStable.Version)
 }
