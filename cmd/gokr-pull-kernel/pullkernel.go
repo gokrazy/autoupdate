@@ -16,6 +16,12 @@ import (
 	"github.com/google/go-github/github"
 )
 
+var (
+	updaterPath = flag.String("updater_path",
+		"cmd/gokr-build-kernel/build.go",
+		"build.go path to update")
+)
+
 func getUpstreamURL(ctx context.Context) (string, error) {
 	resp, err := http.Get("https://www.kernel.org/releases.json")
 	if err != nil {
@@ -69,19 +75,16 @@ func updateKernel(ctx context.Context, client *github.Client, owner, repo string
 	}
 	log.Printf("baseTree = %+v", baseTree)
 
-	var (
-		updaterSHA  string
-		updaterPath = "cmd/gokr-build-kernel/build.go"
-	)
+	var updaterSHA string
 	for _, entry := range baseTree.Entries {
-		if *entry.Path == updaterPath {
+		if *entry.Path == *updaterPath {
 			updaterSHA = *entry.SHA
 			break
 		}
 	}
 
 	if updaterSHA == "" {
-		return fmt.Errorf("%s not found in %s/%s", updaterPath, owner, repo)
+		return fmt.Errorf("%s not found in %s/%s", *updaterPath, owner, repo)
 	}
 
 	updaterBlob, _, err := client.Git.GetBlob(ctx, owner, repo, updaterSHA)
@@ -108,7 +111,7 @@ func updateKernel(ctx context.Context, client *github.Client, owner, repo string
 
 	entries := []github.TreeEntry{
 		{
-			Path:    github.String(updaterPath),
+			Path:    github.String(*updaterPath),
 			Mode:    github.String("100644"),
 			Type:    github.String("blob"),
 			Content: github.String(string(newContent)),
