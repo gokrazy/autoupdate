@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -58,13 +59,20 @@ func writeBootImage() (string, error) {
 	return f.Name(), cmd.Run()
 }
 
-func testBoot(bootImg, booteryURL string) (string, error) {
+func testBoot(bootImg, booteryURL, slug string) (string, error) {
 	f, err := os.Open(bootImg)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-	req, err := http.NewRequest(http.MethodPut, booteryURL, f)
+	u, err := url.Parse(booteryURL)
+	if err != nil {
+		return "", err
+	}
+	v := u.Query()
+	v.Set("slug", slug)
+	u.RawQuery = v.Encode()
+	req, err := http.NewRequest(http.MethodPut, u.String(), f)
 	if err != nil {
 		return "", err
 	}
@@ -173,7 +181,7 @@ func main() {
 	}
 	defer os.Remove(bootImg)
 
-	bootlog, err := testBoot(bootImg, *booteryURL)
+	bootlog, err := testBoot(bootImg, *booteryURL, slug)
 	if err != nil {
 		log.Fatal(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
 	}
