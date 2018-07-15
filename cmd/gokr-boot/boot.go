@@ -37,6 +37,10 @@ var (
 	firmwarePackage = flag.String("firmware_package",
 		"github.com/gokrazy/firmware",
 		"-firmware_package to pass to gokr-packer")
+
+	serialConsole = flag.String("serial_console",
+		"ttyAMA0,115200",
+		"-serial_console to pass to gokr-packer")
 )
 
 func createGist(ctx context.Context, client *github.Client, log string) (string, error) {
@@ -66,6 +70,7 @@ func writeBootImage() (string, error) {
 		"-overwrite_boot="+f.Name(),
 		"-kernel_package="+*kernelPackage,
 		"-firmware_package="+*firmwarePackage,
+		"-serial_console="+*serialConsole,
 		"github.com/gokrazy/bakery/cmd/bake")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
