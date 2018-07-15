@@ -29,6 +29,14 @@ var (
 	booteryURL = flag.String("bootery_url",
 		"",
 		"/testboot URL to send boot images to")
+
+	kernelPackage = flag.String("kernel_package",
+		"github.com/gokrazy/kernel",
+		"-kernel_package to pass to gokr-packer")
+
+	firmwarePackage = flag.String("firmware_package",
+		"github.com/gokrazy/firmware",
+		"-firmware_package to pass to gokr-packer")
 )
 
 func createGist(ctx context.Context, client *github.Client, log string) (string, error) {
@@ -53,7 +61,12 @@ func writeBootImage() (string, error) {
 		return "", err
 	}
 	f.Close()
-	cmd := exec.Command("gokr-packer", "-hostname=bakery", "-overwrite_boot="+f.Name(), "github.com/gokrazy/bakery/cmd/bake")
+	cmd := exec.Command("gokr-packer",
+		"-hostname=bakery",
+		"-overwrite_boot="+f.Name(),
+		"-kernel_package="+*kernelPackage,
+		"-firmware_package="+*firmwarePackage,
+		"github.com/gokrazy/bakery/cmd/bake")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return f.Name(), cmd.Run()
