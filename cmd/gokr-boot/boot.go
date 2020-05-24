@@ -101,7 +101,8 @@ func testBoot(bootImg, booteryURL, slug string) (string, error) {
 		return "", err
 	}
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
-		return "", fmt.Errorf("unexpected HTTP status code: got %d, want %d", got, want)
+		b, _ := ioutil.ReadAll(resp.Body)
+		return "", fmt.Errorf("unexpected HTTP status code: got %d (%s), want %d", got, strings.TrimSpace(string(b)), want)
 	}
 	b, err := ioutil.ReadAll(resp.Body)
 	return string(b), err
