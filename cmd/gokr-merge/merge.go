@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gokrazy/autoupdate/internal/cienv"
 	"github.com/google/go-github/v29/github"
 )
 
@@ -44,6 +45,14 @@ func deleteRef(ctx context.Context, client *github.Client, owner, repo string, r
 	return err
 }
 
+var (
+	githubUser              = cienv.MustGetGithubUser()
+	authToken               = cienv.MustGetAuthToken()
+	slug                    = cienv.MustGetSlug()
+	travisPullRequest       = cienv.MustGetPullRequest()
+	travisPullRequestBranch = cienv.MustGetPullRequestBranch()
+)
+
 func main() {
 	flag.Parse()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -51,20 +60,6 @@ func main() {
 	if *requireLabel == "" {
 		log.Fatal("-require_label is a required flag")
 	}
-
-	for _, name := range []string{
-		"TRAVIS_PULL_REQUEST",
-		"TRAVIS_PULL_REQUEST_BRANCH",
-		"TRAVIS_REPO_SLUG",
-		"GITHUB_USER",
-		"GITHUB_AUTH_TOKEN",
-	} {
-		if os.Getenv(name) == "" {
-			log.Fatalf("required environment variable %q empty", name)
-		}
-	}
-
-	slug := os.Getenv("TRAVIS_REPO_SLUG")
 
 	parts := strings.Split(slug, "/")
 	if got, want := len(parts), 2; got != want {
@@ -75,12 +70,12 @@ func main() {
 
 	client := github.NewClient(&http.Client{
 		Transport: &github.BasicAuthTransport{
-			Username: os.Getenv("GITHUB_USER"),
-			Password: os.Getenv("GITHUB_AUTH_TOKEN"),
+			Username: githubUser,
+			Password: authToken,
 		},
 	})
 
-	issueNum, err := strconv.ParseInt(os.Getenv("TRAVIS_PULL_REQUEST"), 0, 64)
+	issueNum, err := strconv.ParseInt(travisPullRequest, 0, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -97,7 +92,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := deleteRef(ctx, client, parts[0], parts[1], "heads/"+os.Getenv("TRAVIS_PULL_REQUEST_BRANCH")); err != nil {
+	if err := deleteRef(ctx, client, parts[0], parts[1], "heads/"+travisPullRequestBranch); err != nil {
 		log.Fatal(err)
 	}
 }

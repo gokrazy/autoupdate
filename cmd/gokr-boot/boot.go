@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gokrazy/autoupdate/internal/cienv"
 	"github.com/google/go-github/v29/github"
 )
 
@@ -136,42 +137,16 @@ func addComment(ctx context.Context, client *github.Client, owner, repo string, 
 	return err
 }
 
+var (
+	githubUser        = cienv.MustGetGithubUser()
+	authToken         = cienv.MustGetAuthToken()
+	slug              = cienv.MustGetSlug()
+	travisPullRequest = cienv.MustGetPullRequest()
+)
+
 func main() {
 	flag.Parse()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
-	githubUser := os.Getenv("GITHUB_USER") // Travis CI
-	if githubUser == "" {
-		githubUser = os.Getenv("GH_USER") // GitHub actions
-	}
-	if githubUser == "" {
-		log.Fatal("required environment variable GITHUB_USER (or GH_USER) empty")
-	}
-
-	authToken := os.Getenv("GITHUB_AUTH_TOKEN") // Travis CI
-	if authToken == "" {
-		authToken = os.Getenv("GH_AUTH_TOKEN") // GitHub actions
-	}
-	if authToken == "" {
-		log.Fatal("required environment variable GITHUB_AUTH_TOKEN (or GH_AUTH_TOKEN) empty")
-	}
-
-	slug := os.Getenv("TRAVIS_REPO_SLUG") // Travis CI
-	if slug == "" {
-		slug = os.Getenv("GITHUB_REPOSITORY") // GitHub actions
-	}
-	if slug == "" {
-		log.Fatal("required environment variable TRAVIS_REPO_SLUG (or GITHUB_REPOSITORY) empty")
-	}
-
-	for _, name := range []string{
-		"TRAVIS_PULL_REQUEST",
-		"TRAVIS_PULL_REQUEST_BRANCH",
-	} {
-		if os.Getenv(name) == "" {
-			log.Fatalf("required environment variable %q empty", name)
-		}
-	}
 
 	if *booteryURL == "" {
 		log.Fatal("-bootery_url is a required flag")
@@ -185,14 +160,12 @@ func main() {
 		log.Fatal("-set_label is a required flag")
 	}
 
-	//branch := os.Getenv("TRAVIS_PULL_REQUEST_BRANCH")
-
 	parts := strings.Split(slug, "/")
 	if got, want := len(parts), 2; got != want {
 		log.Fatalf("unexpected number of /-separated parts in %q: got %d, want %d", slug, got, want)
 	}
 
-	i, err := strconv.ParseInt(os.Getenv("TRAVIS_PULL_REQUEST"), 0, 64)
+	i, err := strconv.ParseInt(travisPullRequest, 0, 64)
 	if err != nil {
 		log.Fatalf("could not parse TRAVIS_PULL_REQUEST=%q as number: %v", os.Getenv("TRAVIS_PULL_REQUEST"), err)
 	}
