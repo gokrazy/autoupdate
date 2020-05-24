@@ -173,8 +173,8 @@ func main() {
 
 	for _, name := range []string{
 		"GITHUB_REPOSITORY",
-		"GITHUB_USER",
-		"GITHUB_AUTH_TOKEN",
+		"GH_USER",
+		"GH_AUTH_TOKEN",
 	} {
 		if os.Getenv(name) == "" {
 			log.Fatalf("required environment variable %q empty", name)
@@ -192,8 +192,8 @@ func main() {
 
 	client := github.NewClient(&http.Client{
 		Transport: &github.BasicAuthTransport{
-			Username: os.Getenv("GITHUB_USER"),
-			Password: os.Getenv("GITHUB_AUTH_TOKEN"),
+			Username: os.Getenv("GH_USER"),
+			Password: os.Getenv("GH_AUTH_TOKEN"),
 		},
 	})
 
