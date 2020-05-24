@@ -172,7 +172,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	for _, name := range []string{
-		"TRAVIS_REPO_SLUG",
+		"GITHUB_REPOSITORY",
 		"GITHUB_USER",
 		"GITHUB_AUTH_TOKEN",
 	} {
@@ -181,7 +181,7 @@ func main() {
 		}
 	}
 
-	slug := os.Getenv("TRAVIS_REPO_SLUG")
+	slug := os.Getenv("GITHUB_REPOSITORY")
 
 	parts := strings.Split(slug, "/")
 	if got, want := len(parts), 2; got != want {
