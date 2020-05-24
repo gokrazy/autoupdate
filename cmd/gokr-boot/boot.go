@@ -140,12 +140,33 @@ func main() {
 	flag.Parse()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
+	githubUser := os.Getenv("GITHUB_USER") // Travis CI
+	if githubUser == "" {
+		githubUser = os.Getenv("GH_USER") // GitHub actions
+	}
+	if githubUser == "" {
+		log.Fatal("required environment variable GITHUB_USER (or GH_USER) empty")
+	}
+
+	authToken := os.Getenv("GITHUB_AUTH_TOKEN") // Travis CI
+	if authToken == "" {
+		authToken = os.Getenv("GH_AUTH_TOKEN") // GitHub actions
+	}
+	if authToken == "" {
+		log.Fatal("required environment variable GITHUB_AUTH_TOKEN (or GH_AUTH_TOKEN) empty")
+	}
+
+	slug := os.Getenv("TRAVIS_REPO_SLUG") // Travis CI
+	if slug == "" {
+		slug = os.Getenv("GITHUB_REPOSITORY") // GitHub actions
+	}
+	if slug == "" {
+		log.Fatal("required environment variable TRAVIS_REPO_SLUG (or GITHUB_REPOSITORY) empty")
+	}
+
 	for _, name := range []string{
 		"TRAVIS_PULL_REQUEST",
 		"TRAVIS_PULL_REQUEST_BRANCH",
-		"TRAVIS_REPO_SLUG",
-		"GITHUB_USER",
-		"GITHUB_AUTH_TOKEN",
 	} {
 		if os.Getenv(name) == "" {
 			log.Fatalf("required environment variable %q empty", name)
@@ -165,7 +186,6 @@ func main() {
 	}
 
 	//branch := os.Getenv("TRAVIS_PULL_REQUEST_BRANCH")
-	slug := os.Getenv("TRAVIS_REPO_SLUG")
 
 	parts := strings.Split(slug, "/")
 	if got, want := len(parts), 2; got != want {
@@ -180,8 +200,8 @@ func main() {
 
 	client := github.NewClient(&http.Client{
 		Transport: &github.BasicAuthTransport{
-			Username: os.Getenv("GITHUB_USER"),
-			Password: os.Getenv("GITHUB_AUTH_TOKEN"),
+			Username: githubUser,
+			Password: authToken,
 		},
 	})
 
