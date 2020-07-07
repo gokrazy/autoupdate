@@ -72,13 +72,14 @@ func writeBootImage() (string, error) {
 		"-kernel_package="+*kernelPackage,
 		"-firmware_package="+*firmwarePackage,
 		"-serial_console="+*serialConsole,
-		"github.com/gokrazy/bakery/cmd/bake")
+		"github.com/gokrazy/bakery/cmd/bake",
+		"github.com/gokrazy/timestamps")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return f.Name(), cmd.Run()
 }
 
-func testBoot(bootImg, booteryURL, slug string) (string, error) {
+func testBoot(bootImg, booteryURL, slug, newer string) (string, error) {
 	f, err := os.Open(bootImg)
 	if err != nil {
 		return "", err
@@ -90,6 +91,7 @@ func testBoot(bootImg, booteryURL, slug string) (string, error) {
 	}
 	v := u.Query()
 	v.Set("slug", slug)
+	v.Set("boot-newer", newer)
 	u.RawQuery = v.Encode()
 	req, err := http.NewRequest(http.MethodPut, u.String(), f)
 	if err != nil {
@@ -187,13 +189,15 @@ func main() {
 		return
 	}
 
+	newer := strconv.FormatInt(time.Now().Unix(), 10)
+
 	bootImg, err := writeBootImage()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer os.Remove(bootImg)
 
-	bootlog, err := testBoot(bootImg, *booteryURL, slug)
+	bootlog, err := testBoot(bootImg, *booteryURL, slug, newer)
 	if err != nil {
 		log.Fatal(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
 	}
