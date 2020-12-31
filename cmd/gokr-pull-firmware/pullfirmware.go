@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 
+	"github.com/gokrazy/autoupdate/internal/cienv"
 	"github.com/google/go-github/v29/github"
 )
 
@@ -169,21 +169,15 @@ func updateFirmware(ctx context.Context, client *github.Client, owner, repo stri
 	return nil
 }
 
+var (
+	githubUser = cienv.MustGetGithubUser()
+	authToken  = cienv.MustGetAuthToken()
+	slug       = cienv.MustGetSlug()
+)
+
 func main() {
 	flag.Parse()
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
-	for _, name := range []string{
-		"GITHUB_REPOSITORY",
-		"GITHUB_USER",
-		"GITHUB_AUTH_TOKEN",
-	} {
-		if os.Getenv(name) == "" {
-			log.Fatalf("required environment variable %q empty", name)
-		}
-	}
-
-	slug := os.Getenv("GITHUB_REPOSITORY")
 
 	parts := strings.Split(slug, "/")
 	if got, want := len(parts), 2; got != want {
@@ -194,8 +188,8 @@ func main() {
 
 	client := github.NewClient(&http.Client{
 		Transport: &github.BasicAuthTransport{
-			Username: os.Getenv("GITHUB_USER"),
-			Password: os.Getenv("GITHUB_AUTH_TOKEN"),
+			Username: githubUser,
+			Password: authToken,
 		},
 	})
 
