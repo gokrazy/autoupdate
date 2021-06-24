@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
-	"github.com/google/go-github/v29/github"
+	"github.com/google/go-github/v35/github"
 )
 
 var (

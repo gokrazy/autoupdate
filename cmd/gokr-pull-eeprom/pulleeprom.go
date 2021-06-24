@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/google/go-github/v29/github"
+	"github.com/google/go-github/v35/github"
 )
 
 // getUpstreamCommit returns the SHA of the most recent
@@ -117,7 +117,7 @@ func updateEeprom(ctx context.Context, client *github.Client, owner, repo string
 	newContent := eepromRefRe.ReplaceAllLiteral(updaterContent,
 		[]byte(fmt.Sprintf(`const eepromRef = "%s"`, upstreamCommit)))
 
-	entries := []github.TreeEntry{
+	entries := []*github.TreeEntry{
 		{
 			Path:    github.String(updaterPath),
 			Mode:    github.String("100644"),
@@ -135,7 +135,7 @@ func updateEeprom(ctx context.Context, client *github.Client, owner, repo string
 	newCommit, _, err := client.Git.CreateCommit(ctx, owner, repo, &github.Commit{
 		Message: github.String("auto-update to https://github.com/raspberrypi/rpi-eeprom/commit/" + upstreamCommit),
 		Tree:    newTree,
-		Parents: []github.Commit{*lastCommit},
+		Parents: []*github.Commit{lastCommit},
 	})
 	if err != nil {
 		return err

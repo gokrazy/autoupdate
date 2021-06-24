@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
-	"github.com/google/go-github/v29/github"
+	"github.com/google/go-github/v35/github"
 )
 
 func hasLabel(ctx context.Context, client *github.Client, owner, repo string, issueNum int, label string) bool {

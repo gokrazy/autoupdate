@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
-	"github.com/google/go-github/v29/github"
+	"github.com/google/go-github/v35/github"
 )
 
 // getUpstreamCommit returns the SHA of the most recent
@@ -119,7 +119,7 @@ func updateFirmware(ctx context.Context, client *github.Client, owner, repo stri
 	newContent := firmwareRefRe.ReplaceAllLiteral(updaterContent,
 		[]byte(fmt.Sprintf(`const firmwareRef = "%s"`, upstreamCommit)))
 
-	entries := []github.TreeEntry{
+	entries := []*github.TreeEntry{
 		{
 			Path:    github.String(updaterPath),
 			Mode:    github.String("100644"),
@@ -137,7 +137,7 @@ func updateFirmware(ctx context.Context, client *github.Client, owner, repo stri
 	newCommit, _, err := client.Git.CreateCommit(ctx, owner, repo, &github.Commit{
 		Message: github.String("auto-update to https://github.com/raspberrypi/firmware/commit/" + upstreamCommit),
 		Tree:    newTree,
-		Parents: []github.Commit{*lastCommit},
+		Parents: []*github.Commit{lastCommit},
 	})
 	if err != nil {
 		return err

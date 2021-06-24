@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
-	"github.com/google/go-github/v29/github"
+	"github.com/google/go-github/v35/github"
 )
 
 var (
@@ -82,7 +82,7 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 		hashByName[*e.Path] = *e.SHA
 	}
 
-	entries := make([]github.TreeEntry, 0, len(files))
+	entries := make([]*github.TreeEntry, 0, len(files))
 	for _, fn := range files {
 		hash := sha1.New()
 		f, err := os.Open(fn)
@@ -116,7 +116,7 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 				return fmt.Errorf("blob creation failed: invalid SHA hash: got %s, want %s", got, want)
 			}
 
-			entries = append(entries, github.TreeEntry{
+			entries = append(entries, &github.TreeEntry{
 				Path: github.String(fn),
 				Mode: github.String("100644"),
 				Type: github.String("blob"),

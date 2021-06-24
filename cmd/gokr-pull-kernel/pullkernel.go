@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
-	"github.com/google/go-github/v29/github"
+	"github.com/google/go-github/v35/github"
 )
 
 var (
@@ -109,7 +109,7 @@ func updateKernel(ctx context.Context, client *github.Client, owner, repo string
 	newContent := kernelURLRe.ReplaceAllLiteral(updaterContent,
 		[]byte(fmt.Sprintf(`var latest = "%s"`, upstreamURL)))
 
-	entries := []github.TreeEntry{
+	entries := []*github.TreeEntry{
 		{
 			Path:    github.String(*updaterPath),
 			Mode:    github.String("100644"),
@@ -129,7 +129,7 @@ func updateKernel(ctx context.Context, client *github.Client, owner, repo string
 	newCommit, _, err := client.Git.CreateCommit(ctx, owner, repo, &github.Commit{
 		Message: github.String("auto-update to " + version),
 		Tree:    newTree,
-		Parents: []github.Commit{*lastCommit},
+		Parents: []*github.Commit{lastCommit},
 	})
 	if err != nil {
 		return err
