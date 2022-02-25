@@ -4,16 +4,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha1"
-	"encoding/base64"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -59,73 +59,65 @@ func addLabel(ctx context.Context, client *github.Client, owner, repo string, is
 // 2. git commit --amend
 // 3. git push -f
 func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, branch string, files []string, issueNum int, label string) error {
-	lastRef, _, err := client.Git.GetRef(ctx, owner, repo, "heads/"+branch)
+	dir, err := ioutil.TempDir("", "gokr-amend")
 	if err != nil {
 		return err
 	}
+	defer os.RemoveAll(dir)
+	kernel := filepath.Join(dir, "kernel")
 
-	lastCommit, _, err := client.Git.GetCommit(ctx, owner, repo, *lastRef.Object.SHA)
-	if err != nil {
-		return err
+	clone := exec.CommandContext(ctx,
+		"git",
+		"clone",
+		"--branch="+branch,
+		"--depth=2", // just enough for git commit --amend
+		"https://"+githubUser+":"+authToken+"@github.com/"+owner+"/"+repo,
+		kernel)
+	clone.Stdout = os.Stdout
+	clone.Stderr = os.Stderr
+	if err := clone.Run(); err != nil {
+		return fmt.Errorf("%v: %v", clone.Args, err)
 	}
 
-	log.Printf("lastCommit = %+v", lastCommit)
-
-	baseTree, _, err := client.Git.GetTree(ctx, owner, repo, *lastCommit.SHA, true)
-	if err != nil {
-		return err
-	}
-	log.Printf("baseTree = %+v", baseTree)
-
-	hashByName := make(map[string]string, len(baseTree.Entries))
-	for _, e := range baseTree.Entries {
-		hashByName[*e.Path] = *e.SHA
-	}
-
-	entries := make([]*github.TreeEntry, 0, len(files))
-	for _, fn := range files {
-		hash := sha1.New()
-		f, err := os.Open(fn)
-		if err != nil {
-			return err
+	git := func(args ...string) error {
+		log.Printf("git %v", args)
+		cmd := exec.CommandContext(ctx,
+			"git",
+			args...)
+		cmd.Dir = kernel
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("%v: %v", clone.Args, err)
 		}
-		defer f.Close()
-		st, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintf(hash, "blob %d\x00", st.Size()); err != nil {
-			return err
-		}
-		b, err := ioutil.ReadAll(io.TeeReader(f, hash))
-		if err != nil {
-			return err
-		}
-		if local, remote := fmt.Sprintf("%x", hash.Sum(nil)), hashByName[fn]; local != remote {
-			log.Printf("%s differs (local %s, remote %s)", fn, local, remote)
-
-			blob, _, err := client.Git.CreateBlob(ctx, owner, repo, &github.Blob{
-				Content:  github.String(base64.StdEncoding.EncodeToString(b)),
-				Encoding: github.String("base64"),
-			})
-			if err != nil {
-				return err
-			}
-
-			if got, want := *blob.SHA, local; got != want {
-				return fmt.Errorf("blob creation failed: invalid SHA hash: got %s, want %s", got, want)
-			}
-
-			entries = append(entries, &github.TreeEntry{
-				Path: github.String(fn),
-				Mode: github.String("100644"),
-				Type: github.String("blob"),
-				SHA:  github.String(*blob.SHA),
-			})
-		}
+		return nil
 	}
 
-	if len(entries) == 0 {
+	rsync := exec.CommandContext(ctx,
+		"rsync",
+		append(append([]string{
+			"--delete",
+			"-av",
+		}, files...),
+			kernel)...)
+	rsync.Stdout = os.Stdout
+	rsync.Stderr = os.Stderr
+	if err := rsync.Run(); err != nil {
+		return fmt.Errorf("%v: %v", clone.Args, err)
+	}
+
+	var stdout bytes.Buffer
+	status := exec.CommandContext(ctx,
+		"git",
+		"status",
+		"--short")
+	status.Dir = kernel
+	status.Stdout = &stdout
+	status.Stderr = os.Stderr
+	if err := status.Run(); err != nil {
+		return fmt.Errorf("%v: %v", clone.Args, err)
+	}
+	if strings.TrimSpace(stdout.String()) == "" {
 		log.Printf("all files equal, nothing to amend")
 		if label != "" {
 			if err := addLabel(ctx, client, owner, repo, issueNum, label); err != nil {
@@ -135,36 +127,16 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 		return nil
 	}
 
-	newTree, _, err := client.Git.CreateTree(ctx, owner, repo, *baseTree.SHA, entries)
-	if err != nil {
+	if err := git("add", "."); err != nil {
 		return err
 	}
-	log.Printf("newTree = %+v", newTree)
 
-	lastCommit.Tree = newTree
-
-	newCommit, _, err := client.Git.CreateCommit(ctx, owner, repo, lastCommit)
-	if err != nil {
+	if err := git("commit", "-a", "--amend", "--no-edit"); err != nil {
 		return err
 	}
-	log.Printf("newCommit = %+v", newCommit)
-
-	if label != "" {
-		if err := addLabel(ctx, client, owner, repo, issueNum, label); err != nil {
-			return err
-		}
-	}
-
-	newRef, _, err := client.Git.UpdateRef(ctx, owner, repo, &github.Reference{
-		Ref: github.String("refs/heads/" + branch),
-		Object: &github.GitObject{
-			SHA: newCommit.SHA,
-		},
-	}, true)
-	if err != nil {
+	if err := git("push", "-f", "origin", branch); err != nil {
 		return err
 	}
-	log.Printf("newRef = %+v", newRef)
 
 	return nil
 }
