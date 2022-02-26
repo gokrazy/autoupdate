@@ -131,6 +131,15 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 		return err
 	}
 
+	// Set dummy values for user.email and user.name. These are not really used because of
+	// `git commit --amend --no-edit`, but `git commit` with fail without them set.
+	if err := git("config", "user.email", "test@example.com"); err != nil {
+		return err
+	}
+	if err := git("config", "user.name", "gokrazy-bot"); err != nil {
+		return err
+	}
+
 	if err := git("commit", "-a", "--amend", "--no-edit"); err != nil {
 		return err
 	}
