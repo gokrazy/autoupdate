@@ -21,9 +21,11 @@ func hasLabel(ctx context.Context, client *github.Client, owner, repo string, is
 	}
 	for _, l := range labels {
 		if *l.Name == label {
+			log.Printf("gokr-has-label %s? %v", label, true)
 			return true
 		}
 	}
+	log.Printf("gokr-has-label %s? %v", label, false)
 	return false
 }
 
