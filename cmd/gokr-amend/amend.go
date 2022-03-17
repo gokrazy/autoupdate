@@ -143,6 +143,13 @@ func updatePullRequest(ctx context.Context, client *github.Client, owner, repo, 
 	if err := git("commit", "-a", "--amend", "--no-edit"); err != nil {
 		return err
 	}
+
+	if label != "" {
+		if err := addLabel(ctx, client, owner, repo, issueNum, label); err != nil {
+			return err
+		}
+	}
+
 	if err := git("push", "-f", "origin", branch); err != nil {
 		return err
 	}
