@@ -57,7 +57,7 @@ func updateKernel(ctx context.Context, client *github.Client, owner, repo string
 		return err
 	}
 
-	lastRef, _, err := client.Git.GetRef(ctx, owner, repo, "heads/master")
+	lastRef, _, err := client.Git.GetRef(ctx, owner, repo, "heads/main")
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func updateKernel(ctx context.Context, client *github.Client, owner, repo string
 	pr, _, err := client.PullRequests.Create(ctx, owner, repo, &github.NewPullRequest{
 		Title: github.String("auto-update to " + version),
 		Head:  github.String("pull-" + version),
-		Base:  github.String("master"),
+		Base:  github.String("main"),
 	})
 	if err != nil {
 		return err
