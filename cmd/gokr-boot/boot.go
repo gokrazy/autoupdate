@@ -40,7 +40,7 @@ var (
 		"-firmware_package to pass to gokr-packer")
 
 	serialConsole = flag.String("serial_console",
-		"ttyAMA0,115200",
+		"serial0,115200",
 		"-serial_console to pass to gokr-packer")
 )
 
