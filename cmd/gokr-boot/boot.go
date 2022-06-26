@@ -42,6 +42,10 @@ var (
 	serialConsole = flag.String("serial_console",
 		"serial0,115200",
 		"-serial_console to pass to gokr-packer")
+
+	updateRootFlag = flag.Bool("update_root",
+		false,
+		"update bakery root file system, too? required for gokrazy/kernel with loadable kernel modules")
 )
 
 func createGist(ctx context.Context, client *github.Client, log string) (string, error) {
@@ -60,27 +64,35 @@ func createGist(ctx context.Context, client *github.Client, log string) (string,
 	return *gist.HTMLURL, nil
 }
 
-func writeBootImage() (string, error) {
-	f, err := ioutil.TempFile("", "gokr-boot")
+func writeImages() (boot string, root string, _ error) {
+	bootf, err := ioutil.TempFile("", "gokr-boot")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	f.Close()
+	bootf.Close()
+	rootf, err := ioutil.TempFile("", "gokr-root")
+	if err != nil {
+		return "", "", err
+	}
+	rootf.Close()
 	cmd := exec.Command("gokr-packer",
 		"-hostname=bakery",
-		"-overwrite_boot="+f.Name(),
+		"-overwrite_boot="+bootf.Name(),
+		"-overwrite_root="+rootf.Name(),
 		"-kernel_package="+*kernelPackage,
 		"-firmware_package="+*firmwarePackage,
 		"-serial_console="+*serialConsole,
+		"github.com/gokrazy/breakglass",
 		"github.com/gokrazy/bakery/cmd/bake",
-		"github.com/gokrazy/timestamps")
+		"github.com/gokrazy/timestamps",
+		"github.com/gokrazy/wifi")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return f.Name(), cmd.Run()
+	return bootf.Name(), rootf.Name(), cmd.Run()
 }
 
-func testBoot(bootImg, booteryURL, slug, newer string) (string, error) {
-	f, err := os.Open(bootImg)
+func streamTo(img, booteryURL, slug, newer string) (string, error) {
+	f, err := os.Open(img)
 	if err != nil {
 		return "", err
 	}
@@ -91,7 +103,9 @@ func testBoot(bootImg, booteryURL, slug, newer string) (string, error) {
 	}
 	v := u.Query()
 	v.Set("slug", slug)
-	v.Set("boot-newer", newer)
+	if newer != "" {
+		v.Set("boot-newer", newer)
+	}
 	u.RawQuery = v.Encode()
 	req, err := http.NewRequest(http.MethodPut, u.String(), f)
 	if err != nil {
@@ -108,6 +122,14 @@ func testBoot(bootImg, booteryURL, slug, newer string) (string, error) {
 	}
 	b, err := ioutil.ReadAll(resp.Body)
 	return string(b), err
+}
+
+func testBoot(bootImg, booteryURL, slug, newer string) (string, error) {
+	return streamTo(bootImg, booteryURL, slug, newer)
+}
+
+func updateRoot(rootImg, booteryURL, slug string) (string, error) {
+	return streamTo(rootImg, strings.TrimSuffix(booteryURL, "/testboot")+"/updateroot", slug, "")
 }
 
 func ensureLabel(ctx context.Context, client *github.Client, owner, repo string, issueNum int, label string) error {
@@ -193,13 +215,22 @@ func main() {
 	// (UNIX timestamps use seconds as their granularity).
 	newer := strconv.FormatInt(time.Now().Unix()-1, 10)
 
-	bootImg, err := writeBootImage()
+	bootImg, rootImg, err := writeImages()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer os.Remove(bootImg)
+	defer os.Remove(rootImg)
 
-	bootlog, err := testBoot(bootImg, *booteryURL, slug, newer)
+	if *updateRootFlag {
+		log.Printf("updating root file system")
+		if _, err := updateRoot(rootImg, *booteryURL, slug); err != nil {
+			log.Fatal(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
+		}
+	}
+
+	log.Printf("testing boot file system")
+	bootlog, err := testBoot(bootImg, *booteryURL+fmt.Sprintf("?update_root=%v", *updateRootFlag), slug, newer)
 	if err != nil {
 		log.Fatal(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
 	}
