@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -64,7 +66,8 @@ func createGist(ctx context.Context, client *github.Client, log string) (string,
 	return *gist.HTMLURL, nil
 }
 
-func writeImages() (boot string, root string, _ error) {
+func writeImages(hostname string) (boot string, root string, _ error) {
+	log.Printf("writeImages(%s)", hostname)
 	bootf, err := ioutil.TempFile("", "gokr-boot")
 	if err != nil {
 		return "", "", err
@@ -76,7 +79,7 @@ func writeImages() (boot string, root string, _ error) {
 	}
 	rootf.Close()
 	cmd := exec.Command("gokr-packer",
-		"-hostname=bakery",
+		"-hostname="+hostname,
 		"-overwrite_boot="+bootf.Name(),
 		"-overwrite_root="+rootf.Name(),
 		"-kernel_package="+*kernelPackage,
@@ -91,7 +94,58 @@ func writeImages() (boot string, root string, _ error) {
 	return bootf.Name(), rootf.Name(), cmd.Run()
 }
 
-func streamTo(img, booteryURL, slug, newer string) (string, error) {
+func useBakeries(booteryURL, slug string) ([]string, error) {
+	u, err := url.Parse(booteryURL)
+	if err != nil {
+		return nil, err
+	}
+	v := u.Query()
+	v.Set("slug", slug)
+	u.RawQuery = v.Encode()
+	req, err := http.NewRequest(http.MethodPut, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		b, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected HTTP status code: got %d (%s), want %d", got, strings.TrimSpace(string(b)), want)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var useReply struct {
+		Hosts []string `json:"hosts"`
+	}
+	if err := json.Unmarshal(b, &useReply); err != nil {
+		return nil, err
+	}
+	return useReply.Hosts, nil
+}
+
+func releaseBakeries(booteryURL string) error {
+	req, err := http.NewRequest(http.MethodPut, booteryURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		b, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected HTTP status code: got %d (%s), want %d", got, strings.TrimSpace(string(b)), want)
+	}
+	return nil
+}
+
+func streamTo(img, booteryURL, hostname, newer string) (string, error) {
 	f, err := os.Open(img)
 	if err != nil {
 		return "", err
@@ -102,7 +156,7 @@ func streamTo(img, booteryURL, slug, newer string) (string, error) {
 		return "", err
 	}
 	v := u.Query()
-	v.Set("slug", slug)
+	v.Set("hostname", hostname)
 	if newer != "" {
 		v.Set("boot-newer", newer)
 	}
@@ -124,12 +178,12 @@ func streamTo(img, booteryURL, slug, newer string) (string, error) {
 	return string(b), err
 }
 
-func testBoot(bootImg, booteryURL, slug, newer string) (string, error) {
-	return streamTo(bootImg, booteryURL, slug, newer)
+func testBoot(bootImg, booteryURL, hostname, newer string) (string, error) {
+	return streamTo(bootImg, booteryURL, hostname, newer)
 }
 
-func updateRoot(rootImg, booteryURL, slug string) (string, error) {
-	return streamTo(rootImg, strings.TrimSuffix(booteryURL, "/testboot")+"/updateroot", slug, "")
+func updateRoot(rootImg, booteryURL, hostname string) (string, error) {
+	return streamTo(rootImg, strings.TrimSuffix(booteryURL, "/testboot")+"/updateroot", hostname, "")
 }
 
 func ensureLabel(ctx context.Context, client *github.Client, owner, repo string, issueNum int, label string) error {
@@ -160,6 +214,29 @@ func addComment(ctx context.Context, client *github.Client, owner, repo string, 
 		Body: github.String(fmt.Sprintf("Boot test successful, find the log at %s", gistURL)),
 	})
 	return err
+}
+
+func testBoot1(hostname, newer string) (string, error) {
+	bootImg, rootImg, err := writeImages(hostname)
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(bootImg)
+	defer os.Remove(rootImg)
+
+	if *updateRootFlag {
+		log.Printf("updating root file system")
+		if _, err := updateRoot(rootImg, *booteryURL, hostname); err != nil {
+			return "", errors.New(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
+		}
+	}
+
+	log.Printf("testing boot file system")
+	bootlog, err := testBoot(bootImg, strings.TrimSuffix(*booteryURL, "/testboot")+"/testboot1"+fmt.Sprintf("?update_root=%v", *updateRootFlag), hostname, newer)
+	if err != nil {
+		return "", errors.New(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
+	}
+	return bootlog, nil
 }
 
 var (
@@ -215,33 +292,33 @@ func main() {
 	// (UNIX timestamps use seconds as their granularity).
 	newer := strconv.FormatInt(time.Now().Unix()-1, 10)
 
-	bootImg, rootImg, err := writeImages()
+	// Power on bakeries and expand slug into hostnames
+	booteryBase := strings.TrimSuffix(*booteryURL, "/testboot")
+	hosts, err := useBakeries(booteryBase+"/usebakeries", slug)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.Remove(bootImg)
-	defer os.Remove(rootImg)
-
-	if *updateRootFlag {
-		log.Printf("updating root file system")
-		if _, err := updateRoot(rootImg, *booteryURL, slug); err != nil {
-			log.Fatal(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
+	defer func() {
+		if err := releaseBakeries(booteryBase + "/releasebakeries"); err != nil {
+			log.Fatal(err)
 		}
-	}
+	}()
 
-	log.Printf("testing boot file system")
-	bootlog, err := testBoot(bootImg, *booteryURL+fmt.Sprintf("?update_root=%v", *updateRootFlag), slug, newer)
-	if err != nil {
-		log.Fatal(strings.Replace(err.Error(), *booteryURL, "<bootery_url>", -1))
-	}
+	log.Printf("updating hosts %q", hosts)
+	for _, host := range hosts {
+		bootlog, err := testBoot1(host, newer)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	gistURL, err := createGist(ctx, client, bootlog)
-	if err != nil {
-		log.Fatal(err)
-	}
+		gistURL, err := createGist(ctx, client, bootlog)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	if err := addComment(ctx, client, parts[0], parts[1], issueNum, gistURL); err != nil {
-		log.Fatal(err)
+		if err := addComment(ctx, client, parts[0], parts[1], issueNum, gistURL); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if err := addLabel(ctx, client, parts[0], parts[1], issueNum, *setLabel); err != nil {
