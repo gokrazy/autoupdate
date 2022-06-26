@@ -189,7 +189,9 @@ func main() {
 		return
 	}
 
-	newer := strconv.FormatInt(time.Now().Unix(), 10)
+	// Subtract a second to ensure the gokrazy build timestamp is different
+	// (UNIX timestamps use seconds as their granularity).
+	newer := strconv.FormatInt(time.Now().Unix()-1, 10)
 
 	bootImg, err := writeBootImage()
 	if err != nil {
