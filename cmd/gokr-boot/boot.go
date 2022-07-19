@@ -88,6 +88,7 @@ func writeImages(hostname string) (boot string, root string, _ error) {
 		"github.com/gokrazy/breakglass",
 		"github.com/gokrazy/bakery/cmd/bake",
 		"github.com/gokrazy/timestamps",
+		"github.com/gokrazy/serial-busybox",
 		"github.com/gokrazy/wifi")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
