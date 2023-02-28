@@ -17,7 +17,9 @@ import (
 	"time"
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
+	"github.com/gokrazy/internal/config"
 	"github.com/google/go-github/v35/github"
+	"github.com/google/renameio/v2"
 )
 
 var (
@@ -32,18 +34,6 @@ var (
 	booteryURL = flag.String("bootery_url",
 		"",
 		"/testboot URL to send boot images to")
-
-	kernelPackage = flag.String("kernel_package",
-		"github.com/gokrazy/kernel",
-		"-kernel_package to pass to gokr-packer")
-
-	firmwarePackage = flag.String("firmware_package",
-		"github.com/gokrazy/firmware",
-		"-firmware_package to pass to gokr-packer")
-
-	serialConsole = flag.String("serial_console",
-		"serial0,115200",
-		"-serial_console to pass to gokr-packer")
 
 	updateRootFlag = flag.Bool("update_root",
 		false,
@@ -78,18 +68,23 @@ func writeImages(hostname string) (boot string, root string, _ error) {
 		return "", "", err
 	}
 	rootf.Close()
-	cmd := exec.Command("gokr-packer",
-		"-hostname="+hostname,
-		"-overwrite_boot="+bootf.Name(),
-		"-overwrite_root="+rootf.Name(),
-		"-kernel_package="+*kernelPackage,
-		"-firmware_package="+*firmwarePackage,
-		"-serial_console="+*serialConsole,
-		"github.com/gokrazy/breakglass",
-		"github.com/gokrazy/bakery/cmd/bake",
-		"github.com/gokrazy/timestamps",
-		"github.com/gokrazy/serial-busybox",
-		"github.com/gokrazy/wifi")
+	// Inject the hostname into the instance config.
+	cfg, err := config.ReadFromFile()
+	if err != nil {
+		return "", "", err
+	}
+	cfg.Hostname = hostname
+	b, err := cfg.FormatForFile()
+	if err != nil {
+		return "", "", err
+	}
+	if err := renameio.WriteFile(config.InstanceConfigPath(), b, 0644); err != nil {
+		return "", "", err
+	}
+	cmd := exec.Command("gok",
+		"overwrite",
+		"--boot="+bootf.Name(),
+		"--root="+rootf.Name())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return bootf.Name(), rootf.Name(), cmd.Run()
