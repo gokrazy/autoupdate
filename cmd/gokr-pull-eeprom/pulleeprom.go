@@ -18,7 +18,7 @@ import (
 // github.com/raspberrypi/firmware git commit which touches
 // boot/*.{elf,bin,dat}.
 func getUpstreamCommit(ctx context.Context, client *github.Client) (string, error) {
-	_, dirContents, _, err := client.Repositories.GetContents(ctx, "raspberrypi", "rpi-eeprom", "firmware/stable", &github.RepositoryContentGetOptions{})
+	_, dirContents, _, err := client.Repositories.GetContents(ctx, "raspberrypi", "rpi-eeprom", "firmware-2711/latest", &github.RepositoryContentGetOptions{})
 	if err != nil {
 		return "", err
 	}
