@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
@@ -20,6 +21,10 @@ var (
 	updaterPath = flag.String("updater_path",
 		"cmd/gokr-build-kernel/build.go",
 		"build.go path to update")
+
+	flavor = flag.String("flavor",
+		"vanilla",
+		"which kernel flavor to pull. one of vanilla (kernel.org) or raspberrypi (https://github.com/raspberrypi/linux/tags)")
 )
 
 func getUpstreamURL(ctx context.Context) (string, error) {
@@ -51,8 +56,38 @@ func getUpstreamURL(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("malformed releases.json: latest stable release %q not found in releases list", releases.LatestStable.Version)
 }
 
-func updateKernel(ctx context.Context, client *github.Client, owner, repo string) error {
-	upstreamURL, err := getUpstreamURL(ctx)
+func getRaspberryPiURL(ctx context.Context, client *github.Client) (string, error) {
+	// The raspberrypi/linux repository (currently) tags releases with names
+	// like stable_20240423. Sort them in reverse order, then select the latest.
+	const owner = "raspberrypi"
+	const repo = "linux"
+	tags, _, err := client.Repositories.ListTags(ctx, owner, repo, &github.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+	names := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if strings.HasPrefix(*tag.Name, "stable_") {
+			names = append(names, *tag.Name)
+		}
+	}
+	if len(names) == 0 {
+		return "", fmt.Errorf("BUG: no stable_ tags found")
+	}
+	slices.Sort(names)
+	slices.Reverse(names)
+	return names[0], nil
+}
+
+func updateKernel(ctx context.Context, client *github.Client, flavor, owner, repo string) error {
+	var upstreamURL string
+	var err error
+	switch flavor {
+	case "vanilla":
+		upstreamURL, err = getUpstreamURL(ctx)
+	case "raspberrypi":
+		upstreamURL, err = getRaspberryPiURL(ctx, client)
+	}
 	if err != nil {
 		return err
 	}
@@ -185,7 +220,7 @@ func main() {
 		},
 	})
 
-	if err := updateKernel(ctx, client, parts[0], parts[1]); err != nil {
+	if err := updateKernel(ctx, client, *flavor, parts[0], parts[1]); err != nil {
 		log.Fatal(err)
 	}
 }
