@@ -76,7 +76,7 @@ func getRaspberryPiURL(ctx context.Context, client *github.Client) (string, erro
 	}
 	slices.Sort(names)
 	slices.Reverse(names)
-	return names[0], nil
+	return "https://github.com/raspberrypi/linux/archive/refs/tags/" + names[0] + ".tar.gz", nil
 }
 
 func updateKernel(ctx context.Context, client *github.Client, flavor, owner, repo string) error {
