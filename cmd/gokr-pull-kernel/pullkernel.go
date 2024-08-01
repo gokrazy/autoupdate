@@ -92,6 +92,8 @@ func updateKernel(ctx context.Context, client *github.Client, flavor, owner, rep
 		return err
 	}
 
+	log.Printf("upstream URL: %s", upstreamURL)
+
 	lastRef, _, err := client.Git.GetRef(ctx, owner, repo, "heads/main")
 	if err != nil {
 		return err
