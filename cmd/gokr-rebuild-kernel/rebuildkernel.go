@@ -16,7 +16,11 @@ import (
 const dockerFileContents = `
 FROM debian:bookworm
 
-RUN apt-get update && apt-get install -y build-essential bc libssl-dev bison flex libelf-dev ncurses-dev ca-certificates zstd kmod python3
+RUN apt-get update && apt-get install -y \
+{{ if (eq .Cross "arm64") -}}
+  crossbuild-essential-arm64 \
+{{ end -}}
+  build-essential bc libssl-dev bison flex libelf-dev ncurses-dev ca-certificates zstd kmod python3
 
 COPY gokr-rebuild-kernel /usr/bin/gokr-rebuild-kernel
 COPY config.addendum.txt /usr/src/config.addendum.txt
@@ -103,7 +107,15 @@ func rebuildKernel() error {
 		false,
 		"do not delete build container after building the kernel")
 
+	cross := flag.String("cross",
+		"",
+		"if non-empty, cross-compile for the specified arch (one of 'arm64')")
+
 	flag.Parse()
+
+	if *cross != "" && *cross != "arm64" {
+		return fmt.Errorf("invalid -cross value %q: expected one of 'arm64'")
+	}
 
 	abs, err := os.Getwd()
 	if err != nil {
@@ -172,10 +184,12 @@ func rebuildKernel() error {
 		Uid     string
 		Gid     string
 		Patches []string
+		Cross   string
 	}{
 		Uid:     u.Uid,
 		Gid:     u.Gid,
 		Patches: patches,
+		Cross:   *cross,
 	}); err != nil {
 		return err
 	}
@@ -215,7 +229,11 @@ func rebuildKernel() error {
 	if execName == "podman" {
 		dockerArgs = append(dockerArgs, "--userns=keep-id")
 	}
-	dockerArgs = append(dockerArgs, "gokr-rebuild-kernel", strings.TrimSpace(string(upstreamURL)))
+	dockerArgs = append(dockerArgs,
+		"gokr-rebuild-kernel",
+		"-cross="+*cross,
+		strings.TrimSpace(string(upstreamURL)))
+
 	dockerRun = exec.Command(executable, dockerArgs...)
 
 	dockerRun.Stdout = os.Stdout
@@ -258,6 +276,23 @@ func rebuildKernel() error {
 	if err := cp.Run(); err != nil {
 		return fmt.Errorf("%v: %v", cp.Args, err)
 	}
+
+	// replace device tree files
+	rm = exec.Command("sh", "-c", "rm ../*.dtb")
+	rm.Stdout = os.Stdout
+	rm.Stderr = os.Stderr
+	log.Printf("%v", rm.Args)
+	if err := rm.Run(); err != nil {
+		return fmt.Errorf("%v: %v", rm.Args, err)
+	}
+	cp = exec.Command("sh", "-c", "cp *.dtb ..")
+	cp.Stdout = os.Stdout
+	cp.Stderr = os.Stderr
+	log.Printf("%v", cp.Args)
+	if err := cp.Run(); err != nil {
+		return fmt.Errorf("%v: %v", cp.Args, err)
+	}
+
 	return nil
 }
 

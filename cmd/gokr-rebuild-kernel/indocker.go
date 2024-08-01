@@ -60,7 +60,7 @@ func applyPatches(srcdir string) error {
 	return nil
 }
 
-func compile() error {
+func compile(cross string) error {
 	defconfig := exec.Command("make", "defconfig")
 	defconfig.Stdout = os.Stdout
 	defconfig.Stderr = os.Stderr
@@ -106,6 +106,9 @@ func compile() error {
 		"KBUILD_BUILD_TIMESTAMP=Wed Mar  1 20:57:29 UTC 2017",
 	)
 	make := exec.Command("make", "bzImage", "modules", "-j"+strconv.Itoa(runtime.NumCPU()))
+	if cross == "arm64" {
+		make = exec.Command("make", "Image.gz", "dtbs", "modules", "-j"+strconv.Itoa(runtime.NumCPU()))
+	}
 	make.Env = env
 	make.Stdout = os.Stdout
 	make.Stderr = os.Stderr
@@ -125,6 +128,10 @@ func compile() error {
 }
 
 func indockerMain() {
+	cross := flag.String("cross",
+		"",
+		"if non-empty, cross-compile for the specified arch (one of 'arm64')")
+
 	flag.Parse()
 	latest := flag.Arg(0)
 	if latest == "" {
@@ -154,12 +161,40 @@ func indockerMain() {
 		log.Fatal(err)
 	}
 
+	if *cross == "arm64" {
+		log.Printf("exporting ARCH=arm64, CROSS_COMPILE=aarch64-linux-gnu-")
+		os.Setenv("ARCH", "arm64")
+		os.Setenv("CROSS_COMPILE", "aarch64-linux-gnu-")
+	}
+
 	log.Printf("compiling kernel")
-	if err := compile(); err != nil {
+	if err := compile(*cross); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := copyFile("/tmp/buildresult/vmlinuz", "arch/x86/boot/bzImage"); err != nil {
-		log.Fatal(err)
+	if *cross == "arm64" {
+		if err := copyFile("/tmp/buildresult/vmlinuz", "arch/arm64/boot/Image"); err != nil {
+			log.Fatal(err)
+		}
+
+		// copy device tree files from arch/arm64/boot/dts/broadcom/ to buildresult
+		for dest, source := range map[string]string{
+			"bcm2710-rpi-3-b.dtb":      "bcm2837-rpi-3-b.dtb",
+			"bcm2710-rpi-3-b-plus.dtb": "bcm2837-rpi-3-b-plus.dtb",
+			"bcm2710-rpi-cm3.dtb":      "bcm2837-rpi-cm3-io3.dtb",
+			"bcm2711-rpi-4-b.dtb":      "bcm2711-rpi-4-b.dtb",
+			"bcm2711-rpi-cm4-io.dtb":   "bcm2711-rpi-cm4-io.dtb",
+			"bcm2710-rpi-zero-2-w.dtb": "bcm2837-rpi-zero-2-w.dtb",
+			"bcm2710-rpi-zero-2.dtb":   "bcm2837-rpi-zero-2-w.dtb",
+			"bcm2711-rpi-400.dtb":      "bcm2711-rpi-400.dtb",
+		} {
+			if err := copyFile("/tmp/buildresult/"+dest, "arch/arm64/boot/dts/broadcom/"+source); err != nil {
+				log.Fatal(err)
+			}
+		}
+	} else {
+		if err := copyFile("/tmp/buildresult/vmlinuz", "arch/x86/boot/bzImage"); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
