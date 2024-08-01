@@ -103,17 +103,25 @@ func rebuildKernel() error {
 		false,
 		"do not delete build container after building the kernel")
 
-	patchList := flag.String("patches",
-		"0001-gokrazy-logo.patch",
-		"comma-separated list of (relative or absolute) file names that should be applied to the kernel source before building")
-
 	flag.Parse()
 
-	patches := strings.Split(*patchList, ",")
+	abs, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	if !strings.HasSuffix(strings.TrimSuffix(abs, "/"), "/_build") {
+		return fmt.Errorf("gokr-rebuild-kernel is not run from a _build directory")
+	}
+
+	series, err := os.ReadFile("series")
+	if err != nil {
+		return err
+	}
+	patches := strings.Split(strings.TrimSpace(string(series)), "\n")
 
 	executable, err := getContainerExecutable()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if *overwriteContainerExecutable != "" {
 		executable = *overwriteContainerExecutable
@@ -125,7 +133,7 @@ func rebuildKernel() error {
 	for _, filename := range patches {
 		path, err := find(filename)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		patchPaths = append(patchPaths, path)
 	}
@@ -192,11 +200,6 @@ func rebuildKernel() error {
 	}
 
 	log.Printf("compiling kernel")
-
-	abs, err := os.Getwd()
-	if err != nil {
-		return err
-	}
 
 	var dockerRun *exec.Cmd
 
