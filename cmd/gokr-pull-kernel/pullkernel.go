@@ -134,17 +134,26 @@ func updateKernel(ctx context.Context, client *github.Client, flavor, owner, rep
 		return err
 	}
 
-	kernelURLRe := regexp.MustCompile(`var latest = "([^"]+)"`)
-	matches := kernelURLRe.FindStringSubmatch(string(updaterContent))
-	if matches == nil {
-		return fmt.Errorf("regexp %v resulted in no matches", kernelURLRe)
+	var newContent []byte
+	if strings.HasSuffix(*updaterPath, ".go") {
+		kernelURLRe := regexp.MustCompile(`var latest = "([^"]+)"`)
+		matches := kernelURLRe.FindStringSubmatch(string(updaterContent))
+		if matches == nil {
+			return fmt.Errorf("regexp %v resulted in no matches", kernelURLRe)
+		}
+		if matches[1] == upstreamURL {
+			log.Printf("already at latest commit")
+			return nil
+		}
+		newContent = kernelURLRe.ReplaceAllLiteral(updaterContent,
+			[]byte(fmt.Sprintf(`var latest = "%s"`, upstreamURL)))
+	} else {
+		if strings.TrimSpace(string(updaterContent)) == upstreamURL {
+			log.Printf("already at latest commit")
+			return nil
+		}
+		newContent = []byte(upstreamURL)
 	}
-	if matches[1] == upstreamURL {
-		log.Printf("already at latest commit")
-		return nil
-	}
-	newContent := kernelURLRe.ReplaceAllLiteral(updaterContent,
-		[]byte(fmt.Sprintf(`var latest = "%s"`, upstreamURL)))
 
 	entries := []*github.TreeEntry{
 		{
