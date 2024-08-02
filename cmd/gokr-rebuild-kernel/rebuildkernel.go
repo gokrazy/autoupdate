@@ -277,20 +277,22 @@ func rebuildKernel() error {
 		return fmt.Errorf("%v: %v", cp.Args, err)
 	}
 
-	// replace device tree files
-	rm = exec.Command("sh", "-c", "rm ../*.dtb")
-	rm.Stdout = os.Stdout
-	rm.Stderr = os.Stderr
-	log.Printf("%v", rm.Args)
-	if err := rm.Run(); err != nil {
-		return fmt.Errorf("%v: %v", rm.Args, err)
-	}
-	cp = exec.Command("sh", "-c", "cp *.dtb ..")
-	cp.Stdout = os.Stdout
-	cp.Stderr = os.Stderr
-	log.Printf("%v", cp.Args)
-	if err := cp.Run(); err != nil {
-		return fmt.Errorf("%v: %v", cp.Args, err)
+	if *cross == "arm64" {
+		// replace device tree files
+		rm = exec.Command("sh", "-c", "rm ../*.dtb")
+		rm.Stdout = os.Stdout
+		rm.Stderr = os.Stderr
+		log.Printf("%v", rm.Args)
+		if err := rm.Run(); err != nil {
+			return fmt.Errorf("%v: %v", rm.Args, err)
+		}
+		cp = exec.Command("sh", "-c", "cp *.dtb ..")
+		cp.Stdout = os.Stdout
+		cp.Stderr = os.Stderr
+		log.Printf("%v", cp.Args)
+		if err := cp.Run(); err != nil {
+			return fmt.Errorf("%v: %v", cp.Args, err)
+		}
 	}
 
 	return nil
