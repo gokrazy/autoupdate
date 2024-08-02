@@ -46,6 +46,7 @@ var dockerFileTmpl = template.Must(template.New("dockerfile").
 	Parse(dockerFileContents))
 
 func copyFile(dest, src string) error {
+	log.Printf("copyFile(dest=%s, src=%s)", dest, src)
 	out, err := os.Create(dest)
 	if err != nil {
 		return err
@@ -58,9 +59,11 @@ func copyFile(dest, src string) error {
 	}
 	defer in.Close()
 
-	if _, err := io.Copy(out, in); err != nil {
+	n, err := io.Copy(out, in)
+	if err != nil {
 		return err
 	}
+	log.Printf("  -> %d bytes copied", n)
 
 	st, err := in.Stat()
 	if err != nil {
