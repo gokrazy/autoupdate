@@ -60,8 +60,14 @@ func applyPatches(srcdir string) error {
 	return nil
 }
 
-func compile(cross string) error {
+func compile(cross, flavor string) error {
 	defconfig := exec.Command("make", "defconfig")
+	if flavor == "raspberrypi" {
+		// TODO(https://github.com/gokrazy/gokrazy/issues/223): is it
+		// necessary/desirable to switch to bcm2712_defconfig?
+		defconfig = exec.Command("make", "ARCH=arm64", "bcm2711_defconfig")
+	}
+
 	defconfig.Stdout = os.Stdout
 	defconfig.Stderr = os.Stderr
 	if err := defconfig.Run(); err != nil {
@@ -132,6 +138,10 @@ func indockerMain() {
 		"",
 		"if non-empty, cross-compile for the specified arch (one of 'arm64')")
 
+	flavor := flag.String("flavor",
+		"vanilla",
+		"which kernel flavor to build. one of vanilla (kernel.org) or raspberrypi (https://github.com/raspberrypi/linux/tags)")
+
 	flag.Parse()
 	latest := flag.Arg(0)
 	if latest == "" {
@@ -151,6 +161,9 @@ func indockerMain() {
 	}
 
 	srcdir := strings.TrimSuffix(filepath.Base(latest), ".tar.xz")
+	if *flavor == "raspberrypi" {
+		srcdir = strings.TrimSuffix("linux-"+filepath.Base(latest), ".tar.gz")
+	}
 
 	log.Printf("applying patches")
 	if err := applyPatches(srcdir); err != nil {
@@ -168,7 +181,7 @@ func indockerMain() {
 	}
 
 	log.Printf("compiling kernel")
-	if err := compile(*cross); err != nil {
+	if err := compile(*cross, *flavor); err != nil {
 		log.Fatal(err)
 	}
 
@@ -177,19 +190,48 @@ func indockerMain() {
 			log.Fatal(err)
 		}
 
-		// copy device tree files from arch/arm64/boot/dts/broadcom/ to buildresult
-		for dest, source := range map[string]string{
-			"bcm2710-rpi-3-b.dtb":      "bcm2837-rpi-3-b.dtb",
-			"bcm2710-rpi-3-b-plus.dtb": "bcm2837-rpi-3-b-plus.dtb",
-			"bcm2710-rpi-cm3.dtb":      "bcm2837-rpi-cm3-io3.dtb",
-			"bcm2711-rpi-4-b.dtb":      "bcm2711-rpi-4-b.dtb",
-			"bcm2711-rpi-cm4-io.dtb":   "bcm2711-rpi-cm4-io.dtb",
-			"bcm2710-rpi-zero-2-w.dtb": "bcm2837-rpi-zero-2-w.dtb",
-			"bcm2710-rpi-zero-2.dtb":   "bcm2837-rpi-zero-2-w.dtb",
-			"bcm2711-rpi-400.dtb":      "bcm2711-rpi-400.dtb",
-		} {
-			if err := copyFile("/tmp/buildresult/"+dest, "arch/arm64/boot/dts/broadcom/"+source); err != nil {
+		switch *flavor {
+		case "vanilla":
+			// copy device tree files from arch/arm64/boot/dts/broadcom/ to buildresult
+			for dest, source := range map[string]string{
+				"bcm2710-rpi-3-b.dtb":      "bcm2837-rpi-3-b.dtb",
+				"bcm2710-rpi-3-b-plus.dtb": "bcm2837-rpi-3-b-plus.dtb",
+				"bcm2710-rpi-cm3.dtb":      "bcm2837-rpi-cm3-io3.dtb",
+				"bcm2711-rpi-4-b.dtb":      "bcm2711-rpi-4-b.dtb",
+				"bcm2711-rpi-cm4-io.dtb":   "bcm2711-rpi-cm4-io.dtb",
+				"bcm2710-rpi-zero-2-w.dtb": "bcm2837-rpi-zero-2-w.dtb",
+				"bcm2710-rpi-zero-2.dtb":   "bcm2837-rpi-zero-2-w.dtb",
+				"bcm2711-rpi-400.dtb":      "bcm2711-rpi-400.dtb",
+			} {
+				if err := copyFile("/tmp/buildresult/"+dest, "arch/arm64/boot/dts/broadcom/"+source); err != nil {
+					log.Fatal(err)
+				}
+			}
+
+		case "raspberrypi":
+			// copy all dtb and dtbos (+ overlay_map) to buildresult
+			dtbs, err := filepath.Glob("arch/arm64/boot/dts/broadcom/*.dtb")
+			if err != nil {
 				log.Fatal(err)
+			}
+			for _, fn := range dtbs {
+				if err := copyFile(filepath.Join("/tmp/buildresult/", filepath.Base(fn)), fn); err != nil {
+					log.Fatal(err)
+				}
+			}
+
+			dtbos, err := filepath.Glob("arch/arm64/boot/dts/overlays/*.dtbo")
+			if err != nil {
+				log.Fatal(err)
+			}
+			dtbos = append(dtbos, "arch/arm64/boot/dts/overlays/overlay_map.dtb")
+			if err := os.MkdirAll("/tmp/buildresult/overlays", 0755); err != nil {
+				log.Fatal(err)
+			}
+			for _, fn := range dtbos {
+				if err := copyFile(filepath.Join("/tmp/buildresult/overlays/", filepath.Base(fn)), fn); err != nil {
+					log.Fatal(err)
+				}
 			}
 		}
 	} else {

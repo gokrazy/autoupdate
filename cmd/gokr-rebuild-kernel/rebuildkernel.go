@@ -114,6 +114,10 @@ func rebuildKernel() error {
 		"",
 		"if non-empty, cross-compile for the specified arch (one of 'arm64')")
 
+	flavor := flag.String("flavor",
+		"vanilla",
+		"which kernel flavor to build. one of vanilla (kernel.org) or raspberrypi (https://github.com/raspberrypi/linux/tags)")
+
 	flag.Parse()
 
 	if *cross != "" && *cross != "arm64" {
@@ -235,6 +239,7 @@ func rebuildKernel() error {
 	dockerArgs = append(dockerArgs,
 		"gokr-rebuild-kernel",
 		"-cross="+*cross,
+		"-flavor="+*flavor,
 		strings.TrimSpace(string(upstreamURL)))
 
 	dockerRun = exec.Command(executable, dockerArgs...)
@@ -295,6 +300,28 @@ func rebuildKernel() error {
 		log.Printf("%v", cp.Args)
 		if err := cp.Run(); err != nil {
 			return fmt.Errorf("%v: %v", cp.Args, err)
+		}
+
+		if *flavor == "raspberrypi" {
+			// replace overlays directory
+			overlaysPath, err := find("../overlays")
+			if err != nil {
+				return err
+			}
+			rm = exec.Command("rm", "-rf", overlaysPath)
+			rm.Stdout = os.Stdout
+			rm.Stderr = os.Stderr
+			log.Printf("%v", rm.Args)
+			if err := rm.Run(); err != nil {
+				return fmt.Errorf("%v: %v", rm.Args, err)
+			}
+			cp = exec.Command("cp", "-r", "overlays", overlaysPath)
+			cp.Stdout = os.Stdout
+			cp.Stderr = os.Stderr
+			log.Printf("%v", cp.Args)
+			if err := cp.Run(); err != nil {
+				return fmt.Errorf("%v: %v", cp.Args, err)
+			}
 		}
 	}
 
