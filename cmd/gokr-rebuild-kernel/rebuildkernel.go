@@ -118,6 +118,10 @@ func rebuildKernel() error {
 		"vanilla",
 		"which kernel flavor to build. one of vanilla (kernel.org) or raspberrypi (https://github.com/raspberrypi/linux/tags)")
 
+	dtbs := flag.String("dtbs",
+		"raspberrypi",
+		"which device tree files (.dtb files) to copy. 'raspberrypi' or empty")
+
 	flag.Parse()
 
 	if *cross != "" && *cross != "arm64" {
@@ -286,20 +290,22 @@ func rebuildKernel() error {
 	}
 
 	if *cross == "arm64" {
-		// replace device tree files
-		rm = exec.Command("sh", "-c", "rm ../*.dtb")
-		rm.Stdout = os.Stdout
-		rm.Stderr = os.Stderr
-		log.Printf("%v", rm.Args)
-		if err := rm.Run(); err != nil {
-			return fmt.Errorf("%v: %v", rm.Args, err)
-		}
-		cp = exec.Command("sh", "-c", "cp *.dtb ..")
-		cp.Stdout = os.Stdout
-		cp.Stderr = os.Stderr
-		log.Printf("%v", cp.Args)
-		if err := cp.Run(); err != nil {
-			return fmt.Errorf("%v: %v", cp.Args, err)
+		if *dtbs != "" {
+			// replace device tree files
+			rm = exec.Command("sh", "-c", "rm ../*.dtb")
+			rm.Stdout = os.Stdout
+			rm.Stderr = os.Stderr
+			log.Printf("%v", rm.Args)
+			if err := rm.Run(); err != nil {
+				return fmt.Errorf("%v: %v", rm.Args, err)
+			}
+			cp = exec.Command("sh", "-c", "cp *.dtb ..")
+			cp.Stdout = os.Stdout
+			cp.Stderr = os.Stderr
+			log.Printf("%v", cp.Args)
+			if err := cp.Run(); err != nil {
+				return fmt.Errorf("%v: %v", cp.Args, err)
+			}
 		}
 
 		if *flavor == "raspberrypi" {
