@@ -69,7 +69,7 @@ func writeImages(hostname string) (boot string, root string, _ error) {
 	}
 	rootf.Close()
 	// Inject the hostname into the instance config.
-	cfg, err := config.ReadFromFile()
+	cfg, err := config.ApplyInstanceFlag()
 	if err != nil {
 		return "", "", err
 	}

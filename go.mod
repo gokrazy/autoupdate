@@ -3,7 +3,7 @@ module github.com/gokrazy/autoupdate
 go 1.22
 
 require (
-	github.com/gokrazy/internal v0.0.0-20230225153138-4c2e5af2e920
+	github.com/gokrazy/internal v0.0.0-20250126213949-423a5b587b57
 	github.com/google/go-github/v35 v35.3.0
 	github.com/google/renameio/v2 v2.0.0
 )
