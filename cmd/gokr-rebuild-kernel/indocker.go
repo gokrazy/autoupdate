@@ -80,7 +80,7 @@ func compile(cross, flavor string) error {
 	mod2noconfig.Stdout = os.Stdout
 	mod2noconfig.Stderr = os.Stderr
 	if err := mod2noconfig.Run(); err != nil {
-		return fmt.Errorf("make olddefconfig: %v", err)
+		return fmt.Errorf("make mod2noconfig: %v", err)
 	}
 
 	f, err := os.OpenFile(".config", os.O_APPEND|os.O_WRONLY, 0644)
