@@ -1,6 +1,6 @@
 module github.com/gokrazy/autoupdate
 
-go 1.22
+go 1.24
 
 require (
 	github.com/gokrazy/internal v0.0.0-20250126213949-423a5b587b57
