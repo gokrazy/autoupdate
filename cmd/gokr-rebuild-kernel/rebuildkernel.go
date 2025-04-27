@@ -14,7 +14,7 @@ import (
 )
 
 const dockerFileContents = `
-FROM debian:bookworm
+FROM --platform=$BUILDPLATFORM debian:bookworm
 
 RUN apt-get update && apt-get install -y \
 {{ if (eq .Cross "arm64") -}}
@@ -22,7 +22,8 @@ RUN apt-get update && apt-get install -y \
 {{ end -}}
   build-essential bc libssl-dev bison flex libelf-dev ncurses-dev ca-certificates zstd kmod python3
 
-COPY gokr-rebuild-kernel /usr/bin/gokr-rebuild-kernel
+ARG BUILDARCH
+COPY gokr-rebuild-kernel.$BUILDARCH /usr/bin/gokr-rebuild-kernel
 COPY config.addendum.txt /usr/src/config.addendum.txt
 {{- range $idx, $path := .Patches }}
 COPY {{ $path }} /usr/src/{{ $path }}
@@ -213,7 +214,7 @@ func rebuildKernel() error {
 
 	dockerBuild := exec.Command(execName,
 		"build",
-		"--platform=linux/amd64",
+		// "--platform=linux/amd64",
 		"--rm=true",
 		"--tag=gokr-rebuild-kernel",
 		".")
@@ -230,7 +231,7 @@ func rebuildKernel() error {
 
 	dockerArgs := []string{
 		"run",
-		"--platform=linux/amd64",
+		// "--platform=linux/amd64",
 		"--volume", abs + ":/tmp/buildresult:Z",
 	}
 
