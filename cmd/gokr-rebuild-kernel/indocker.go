@@ -202,6 +202,7 @@ func indockerMain() {
 				"bcm2710-rpi-zero-2-w.dtb": "bcm2837-rpi-zero-2-w.dtb",
 				"bcm2710-rpi-zero-2.dtb":   "bcm2837-rpi-zero-2-w.dtb",
 				"bcm2711-rpi-400.dtb":      "bcm2711-rpi-400.dtb",
+				"bcm2712-rpi-5-b.dtb":      "bcm2712-rpi-5-b.dtb",
 			} {
 				if err := copyFile("/tmp/buildresult/"+dest, "arch/arm64/boot/dts/broadcom/"+source); err != nil {
 					log.Fatal(err)
