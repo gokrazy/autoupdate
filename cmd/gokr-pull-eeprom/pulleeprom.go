@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/google/go-github/v35/github"
@@ -81,48 +80,41 @@ func updateEeprom(ctx context.Context, client *github.Client, owner, repo string
 	log.Printf("baseTree = %+v", baseTree)
 
 	var (
-		updaterSHA  string
-		updaterPath = "cmd/gokr-update-eeprom/eeprom.go"
+		eepromRefSHA  string
+		eepromRefPath = "_build/eeprom-ref.txt"
 	)
 	for _, entry := range baseTree.Entries {
-		if *entry.Path == updaterPath {
-			updaterSHA = *entry.SHA
+		if *entry.Path == eepromRefPath {
+			eepromRefSHA = *entry.SHA
 			break
 		}
 	}
 
-	if updaterSHA == "" {
-		return fmt.Errorf("%s not found in %s/%s", updaterPath, owner, repo)
+	if eepromRefSHA == "" {
+		return fmt.Errorf("%s not found in %s/%s", eepromRefPath, owner, repo)
 	}
 
-	updaterBlob, _, err := client.Git.GetBlob(ctx, owner, repo, updaterSHA)
+	eepromRefBlob, _, err := client.Git.GetBlob(ctx, owner, repo, eepromRefSHA)
 	if err != nil {
 		return err
 	}
 
-	updaterContent, err := base64.StdEncoding.DecodeString(*updaterBlob.Content)
+	eepromRefContent, err := base64.StdEncoding.DecodeString(*eepromRefBlob.Content)
 	if err != nil {
 		return err
 	}
 
-	eepromRefRe := regexp.MustCompile(`const eepromRef = "([0-9a-f]+)"`)
-	matches := eepromRefRe.FindStringSubmatch(string(updaterContent))
-	if matches == nil {
-		return fmt.Errorf("regexp %v resulted in no matches", eepromRefRe)
-	}
-	if matches[1] == upstreamCommit {
+	if strings.TrimSpace(string(eepromRefContent)) == upstreamCommit {
 		log.Printf("already at latest commit")
 		return nil
 	}
-	newContent := eepromRefRe.ReplaceAllLiteral(updaterContent,
-		[]byte(fmt.Sprintf(`const eepromRef = "%s"`, upstreamCommit)))
 
 	entries := []*github.TreeEntry{
 		{
-			Path:    github.String(updaterPath),
+			Path:    github.String(eepromRefPath),
 			Mode:    github.String("100644"),
 			Type:    github.String("blob"),
-			Content: github.String(string(newContent)),
+			Content: github.String(string(upstreamCommit) + "\n"),
 		},
 	}
 
