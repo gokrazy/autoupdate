@@ -13,11 +13,15 @@ import (
 	"github.com/google/go-github/v35/github"
 )
 
+var remoteFirmwareDir = flag.String("remote_firmware_dir",
+	"firmware-2711/latest",
+	"directory to take firmware from (Pi 4 and Pi 5 use different directories)")
+
 // getUpstreamCommit returns the SHA of the most recent
 // github.com/raspberrypi/firmware git commit which touches
 // boot/*.{elf,bin,dat}.
 func getUpstreamCommit(ctx context.Context, client *github.Client) (string, error) {
-	_, dirContents, _, err := client.Repositories.GetContents(ctx, "raspberrypi", "rpi-eeprom", "firmware-2711/latest", &github.RepositoryContentGetOptions{})
+	_, dirContents, _, err := client.Repositories.GetContents(ctx, "raspberrypi", "rpi-eeprom", *remoteFirmwareDir, &github.RepositoryContentGetOptions{})
 	if err != nil {
 		return "", err
 	}
