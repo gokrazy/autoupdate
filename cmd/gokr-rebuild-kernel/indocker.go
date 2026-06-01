@@ -136,7 +136,7 @@ func compile(cross, flavor string) error {
 func indockerMain() {
 	cross := flag.String("cross",
 		"",
-		"if non-empty, cross-compile for the specified arch (one of 'arm64')")
+		"if non-empty, cross-compile for the specified arch (one of 'arm64','amd64')")
 
 	flavor := flag.String("flavor",
 		"vanilla",
@@ -174,10 +174,40 @@ func indockerMain() {
 		log.Fatal(err)
 	}
 
-	if *cross == "arm64" {
-		log.Printf("exporting ARCH=arm64, CROSS_COMPILE=aarch64-linux-gnu-")
-		os.Setenv("ARCH", "arm64")
-		os.Setenv("CROSS_COMPILE", "aarch64-linux-gnu-")
+	// The architecture of the hosting container running the compliation.
+	containerHostArch := runtime.GOARCH
+
+	// Default to building the kernel for the amd64 architecture.
+	// If a cross-compilation target is specified, use that instead.
+	targetArch := "amd64"
+	if *cross != "" {
+		targetArch = *cross
+	}
+
+	if targetArch == containerHostArch {
+		// Native build: container/host arch matches target kernel arch.
+		// Even if cross is set, we will build for the native arch.
+		switch targetArch {
+		case "arm64":
+			log.Printf("exporting ARCH=arm64 (native)")
+			os.Setenv("ARCH", "arm64")
+		case "amd64":
+			log.Printf("exporting ARCH=x86 (native)")
+			os.Setenv("ARCH", "x86")
+		}
+	} else {
+		// container/host arch differs from target kernel arch.
+		// We will build for the target arch using cross-compilation.
+		switch targetArch {
+		case "arm64":
+			log.Printf("exporting ARCH=arm64, CROSS_COMPILE=aarch64-linux-gnu-")
+			os.Setenv("ARCH", "arm64")
+			os.Setenv("CROSS_COMPILE", "aarch64-linux-gnu-")
+		case "amd64":
+			log.Printf("exporting ARCH=x86, CROSS_COMPILE=x86_64-linux-gnu-")
+			os.Setenv("ARCH", "x86")
+			os.Setenv("CROSS_COMPILE", "x86_64-linux-gnu-")
+		}
 	}
 
 	log.Printf("compiling kernel")
@@ -185,7 +215,8 @@ func indockerMain() {
 		log.Fatal(err)
 	}
 
-	if *cross == "arm64" {
+	switch targetArch {
+	case "arm64":
 		if err := copyFile("/tmp/buildresult/vmlinuz", "arch/arm64/boot/Image"); err != nil {
 			log.Fatal(err)
 		}
@@ -235,9 +266,11 @@ func indockerMain() {
 				}
 			}
 		}
-	} else {
+	case "amd64":
 		if err := copyFile("/tmp/buildresult/vmlinuz", "arch/x86/boot/bzImage"); err != nil {
 			log.Fatal(err)
 		}
+	default:
+		log.Fatalf("unsupported target arch: %s", targetArch)
 	}
 }
