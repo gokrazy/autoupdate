@@ -69,16 +69,18 @@ func writeImages(hostname string) (boot string, root string, _ error) {
 	}
 	rootf.Close()
 	// Inject the hostname into the instance config.
-	cfg, err := config.ApplyInstanceFlag()
+	configJSON := config.InstanceConfigPath()
+	cfg, err := config.ReadFromFile(configJSON)
 	if err != nil {
 		return "", "", err
 	}
+	cfg.ApplyEnvironment()
 	cfg.Hostname = hostname
 	b, err := cfg.FormatForFile()
 	if err != nil {
 		return "", "", err
 	}
-	if err := renameio.WriteFile(config.InstanceConfigPath(), b, 0644); err != nil {
+	if err := renameio.WriteFile(configJSON, b, 0644); err != nil {
 		return "", "", err
 	}
 	cmd := exec.Command("gok",

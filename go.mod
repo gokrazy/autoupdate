@@ -3,7 +3,7 @@ module github.com/gokrazy/autoupdate
 go 1.24.0
 
 require (
-	github.com/gokrazy/internal v0.0.0-20250126213949-423a5b587b57
+	github.com/gokrazy/internal v0.0.0-20260622063819-0c8897a4a8ef
 	github.com/google/go-github/v35 v35.3.0
 	github.com/google/renameio/v2 v2.0.0
 	golang.org/x/sync v0.18.0
