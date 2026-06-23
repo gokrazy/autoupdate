@@ -18,6 +18,7 @@ import (
 
 	"github.com/gokrazy/autoupdate/internal/cienv"
 	"github.com/gokrazy/internal/config"
+	"github.com/gokrazy/internal/instanceflag"
 	"github.com/google/go-github/v35/github"
 	"github.com/google/renameio/v2"
 )
@@ -69,8 +70,11 @@ func writeImages(hostname string) (boot string, root string, _ error) {
 	}
 	rootf.Close()
 	// Inject the hostname into the instance config.
-	configJSON := config.InstanceConfigPath()
-	cfg, err := config.ReadFromFile(configJSON)
+	configJSON := (&instanceflag.Flags{
+		Parent: instanceflag.ParentDirDefault(),
+		Name:   hostname,
+	}).InstanceConfigPath()
+	cfg, err := config.ReadFromFile(configJSON, hostname)
 	if err != nil {
 		return "", "", err
 	}
