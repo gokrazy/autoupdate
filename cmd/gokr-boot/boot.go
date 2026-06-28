@@ -69,12 +69,16 @@ func writeImages(hostname string) (boot string, root string, _ error) {
 		return "", "", err
 	}
 	rootf.Close()
-	// Inject the hostname into the instance config.
+	// Inject the hostname into the instance config. The instance is
+	// resolved from $PWD (the CI step runs gokr-boot from within the
+	// instance directory, e.g. ~/gokrazy/bakery), not from the bootery
+	// hostname (e.g. bakeryapu2c4) — those are unrelated.
+	instance := instanceflag.InstanceDefault()
 	configJSON := (&instanceflag.Flags{
 		Parent: instanceflag.ParentDirDefault(),
-		Name:   hostname,
+		Name:   instance,
 	}).InstanceConfigPath()
-	cfg, err := config.ReadFromFile(configJSON, hostname)
+	cfg, err := config.ReadFromFile(configJSON, instance)
 	if err != nil {
 		return "", "", err
 	}
