@@ -1,6 +1,6 @@
 module github.com/gokrazy/autoupdate
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/gokrazy/internal v0.0.0-20260625065634-6994f9152c44
@@ -12,5 +12,5 @@ require (
 require (
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
+	golang.org/x/crypto v0.52.0 // indirect
 )
